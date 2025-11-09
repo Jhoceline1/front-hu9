@@ -2,7 +2,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import http from '../HU4/lib/http'; // 👈 usa tu cliente axios configurado
+import type { AxiosError } from 'axios';
+import http from '../HU4/lib/http'; // 👈 cliente axios configurado
 
 export default function RecuperacionCorreoPage() {
   const [email, setEmail] = useState('');
@@ -44,12 +45,13 @@ export default function RecuperacionCorreoPage() {
           setError('Ya existe una solicitud en curso. Intenta nuevamente en 1 minuto.');
         else setError(data.message || 'Error al solicitar el enlace.');
       }
-    } catch (err: any) {
-      const status = err?.response?.status;
+    } catch (err: unknown) {
+      const axiosErr = err as AxiosError<{ message?: string }>;
+      const status = axiosErr?.response?.status;
       if (status === 404) setError('El correo no está asociado a ninguna cuenta.');
       else if (status === 429)
         setError('Ya existe una solicitud en curso. Intenta nuevamente en 1 minuto.');
-      else setError(err?.response?.data?.message || 'Error de conexión con el servidor.');
+      else setError(axiosErr?.response?.data?.message || 'Error de conexión con el servidor.');
     } finally {
       clearTimeout(fallback);
       setLoading(false);
