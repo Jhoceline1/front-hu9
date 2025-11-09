@@ -1,0 +1,45 @@
+{
+  "name": "servineo-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack --port 3000",
+    "build": "next build --turbopack",
+    "start": "next start",
+    "lint": "eslint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "@react-oauth/google": "^0.12.2",
+    "autoprefixer": "^10.4.21",
+    "axios": "^1.13.2",
+    "framer-motion": "^12.23.24",
+    "jwt-decode": "^4.0.0",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^0.545.0",
+    "next": "15.5.4",
+    "postcss": "^8.5.6",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-icons": "^5.5.0",
+    "react-leaflet": "^5.0.0",
+    "react-toastify": "^11.0.5"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4.1.14",
+    "@types/leaflet": "^1.9.21",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/react-toastify": "^4.0.2",
+    "eslint": "^9",
+    "eslint-config-next": "15.5.4",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "prettier": "^3.6.2",
+    "tailwindcss": "^4.1.14",
+    "typescript": "^5"
+  }
+}
