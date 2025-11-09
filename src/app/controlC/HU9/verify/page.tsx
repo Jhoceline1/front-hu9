@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import http from '../../HU4/lib/http'; // 👈 usa el cliente http centralizado
+import type { AxiosError } from 'axios';
+import http from '../../HU4/lib/http';
 
 export default function VerifyPage() {
   const params = useSearchParams();
@@ -26,15 +27,18 @@ export default function VerifyPage() {
           setMsg(data.message || 'Error verificando enlace. Intenta nuevamente.');
           setTimeout(() => window.location.replace('/controlC/HU9'), 2500);
         }
-      } catch (err: any) {
-        const status = err?.response?.status;
+      } catch (err: unknown) {
+        const axiosErr = err as AxiosError<{ message?: string }>;
+        const status = axiosErr?.response?.status;
+
         if (status === 410) {
           setMsg('El enlace ha expirado. Serás redirigido a la pantalla de recuperación.');
         } else if (status === 400) {
           setMsg('El enlace ya fue utilizado.');
         } else {
-          setMsg(err?.response?.data?.message || 'Error de conexión con el servidor.');
+          setMsg(axiosErr?.response?.data?.message || 'Error de conexión con el servidor.');
         }
+
         setTimeout(() => window.location.replace('/controlC/HU9'), 2500);
       }
     };
