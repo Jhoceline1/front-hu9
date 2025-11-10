@@ -1,37 +1,67 @@
 'use client';
+
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 
-const BASE_API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/controlC';
+const BASE_API =
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/controlC';
 
-export default function ClientView({ email, token }: { email?: string; token?: string }) {
-  const router = useRouter();
-  const [countdown, setCountdown] = useState(300); // 5 minutos
+const RESEND_COOLDOWN_MS = 60_000;     // 1 minuto
+const LINK_VALIDITY_SEC = 5 * 60;      // contador visible de 5 minutos
+
+export default function ClientView({ email: emailProp, token }: { email?: string; token?: string }) {
+  // 1) Email: preferir prop; si no hay, recuperar de sessionStorage
+  const [email, setEmail] = useState<string | undefined>(emailProp);
+  useEffect(() => {
+    if (!emailProp && typeof window !== 'undefined') {
+      const s = sessionStorage.getItem('servineo_last_email');
+      if (s) setEmail(s);
+    }
+  }, [emailProp]);
+
+  // 2) Estado UI
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [canResend, setCanResend] = useState(true);
 
+  // 3) Contador visual (5 min)
+  const [countdown, setCountdown] = useState<number>(LINK_VALIDITY_SEC);
   useEffect(() => {
-    const t = setInterval(() => setCountdown(c => (c <= 1 ? 0 : c - 1)), 1000);
+    const t = setInterval(() => setCountdown((c) => (c <= 0 ? 0 : c - 1)), 1000);
     return () => clearInterval(t);
   }, []);
-
-  useEffect(() => {
-    if (!email || typeof window === 'undefined') return;
-    const localKey = `servineo_last_request_${email}`;
-    const last = localStorage.getItem(localKey);
-    if (!last) return setCanResend(true);
-    const diff = Date.now() - Number(last);
-    setCanResend(diff >= 60_000);
-  }, [email, info, countdown]);
-
   const minutos = useMemo(() => Math.floor(countdown / 60), [countdown]);
   const segundos = useMemo(() => countdown % 60, [countdown]);
 
+  // 4) Cooldown de reenvío basado en localStorage por correo
+  const [now, setNow] = useState<number>(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const lastKey = email ? `servineo_last_request_${email}` : undefined;
+
+  const lastTs = useMemo(() => {
+    if (typeof window === 'undefined' || !lastKey) return undefined;
+    const raw = localStorage.getItem(lastKey);
+    return raw ? Number(raw) : undefined;
+  }, [lastKey, now]); // recalc cada segundo
+
+  const msFromLast = lastTs ? now - lastTs : Infinity;
+  const canResend = msFromLast >= RESEND_COOLDOWN_MS;
+  const secondsToResend = Math.max(0, Math.ceil((RESEND_COOLDOWN_MS - (msFromLast || 0)) / 1000));
+
+  // 5) Acción de reenvío
   const handleResend = async () => {
     setInfo(null);
-    if (!email) return setInfo('No se encontró el correo. Vuelve a la pantalla anterior.');
-    if (!canResend) return setInfo('Ya existe una solicitud en curso. Intenta nuevamente en 1 minuto.');
+
+    if (!email) {
+      setInfo('No se encontró el correo. Vuelve a la pantalla anterior.');
+      return;
+    }
+    if (!canResend) {
+      setInfo(`Espera ${secondsToResend}s para volver a reenviar.`);
+      return;
+    }
 
     setLoading(true);
     const fallback = setTimeout(() => setInfo('Estamos tardando más de lo normal…'), 3000);
@@ -45,15 +75,16 @@ export default function ClientView({ email, token }: { email?: string; token?: s
       const data = await res.json();
 
       if (res.ok && data.success) {
-        if (typeof window !== 'undefined') {
-          localStorage.setItem(`servineo_last_request_${email}`, String(Date.now()));
+        if (typeof window !== 'undefined' && lastKey) {
+          localStorage.setItem(lastKey, String(Date.now())); // inicia cooldown
         }
         setInfo('Enlace reenviado. Revisa tu bandeja de entrada.');
-        setCountdown(300);
-        setCanResend(false);
+        setCountdown(LINK_VALIDITY_SEC); // reinicia contador visual del enlace
       } else if (res.status === 429) {
         setInfo('Ya existe una solicitud en curso. Intenta nuevamente en 1 minuto.');
-        setCanResend(false);
+        if (typeof window !== 'undefined' && lastKey && !lastTs) {
+          localStorage.setItem(lastKey, String(Date.now())); // sincroniza cooldown local
+        }
       } else if (res.status === 404) {
         setInfo('El correo no está asociado a ninguna cuenta.');
       } else {
@@ -64,6 +95,7 @@ export default function ClientView({ email, token }: { email?: string; token?: s
     } finally {
       clearTimeout(fallback);
       setLoading(false);
+      setNow(Date.now()); // fuerza recálculo inmediato
     }
   };
 
@@ -93,22 +125,24 @@ export default function ClientView({ email, token }: { email?: string; token?: s
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
         <button
           onClick={handleResend}
-          disabled={loading || !canResend || !email}
+          // El botón sólo se bloquea por loading o si no tenemos email.
+          disabled={loading || !email}
           className={`rounded-xl p-3.5 font-semibold transition shadow ${
-            loading || !canResend || !email
+            loading || !email
               ? 'bg-servineo-200 text-white cursor-not-allowed'
               : 'bg-servineo-500 hover:bg-servineo-600 text-white'
           }`}
+          title={!canResend ? `Podrás reenviar en ${secondsToResend}s` : 'Reenviar enlace'}
         >
-          {loading ? 'Reenviando…' : 'Reenviar enlace'}
+          {loading ? 'Reenviando…' : !canResend ? `Espera ${secondsToResend}s` : 'Reenviar enlace'}
         </button>
 
-        <button
-          onClick={() => router.push('/controlC/HU4/login')}
-          className="rounded-xl p-3.5 font-semibold transition shadow bg-white text-servineo-500 hover:text-servineo-600 ring-1 ring-servineo-300 hover:ring-servineo-400"
+        <a
+          href="/controlC/HU4/login"
+          className="text-center rounded-xl p-3.5 font-semibold transition shadow bg-white text-servineo-500 hover:text-servineo-600 ring-1 ring-servineo-300 hover:ring-servineo-400"
         >
           Volver a inicio de sesión
-        </button>
+        </a>
       </div>
 
       <div className="mt-6 text-xs text-gray-600 space-y-1">

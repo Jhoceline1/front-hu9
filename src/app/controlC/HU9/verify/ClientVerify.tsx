@@ -1,4 +1,3 @@
-// src/app/controlC/HU9/verify/ClientVerify.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -15,18 +14,20 @@ export default function ClientVerify({ token }: { token?: string }) {
       return;
     }
 
+    let cancelled = false;
+
     const verifyLink = async () => {
       try {
         const res = await fetch(
           `${BASE_API}/auth/magic-login?token=${encodeURIComponent(token)}`
         );
         const data = await res.json();
+        if (cancelled) return;
 
         if (res.ok && data.success && data.token) {
           localStorage.setItem('servineo_token', data.token);
           localStorage.setItem('servineo_user', JSON.stringify(data.user));
-          // Recarga completa para hidratar UI como usuario logueado
-          window.location.replace('/');
+          window.location.replace('/'); // hidratar UI logueado
         } else if (res.status === 410) {
           setMsg('El enlace ha expirado. Serás redirigido a la pantalla de recuperación.');
           setTimeout(() => window.location.replace('/controlC/HU9'), 2500);
@@ -45,6 +46,7 @@ export default function ClientVerify({ token }: { token?: string }) {
     };
 
     verifyLink();
+    return () => { cancelled = true; };
   }, [token]);
 
   return (

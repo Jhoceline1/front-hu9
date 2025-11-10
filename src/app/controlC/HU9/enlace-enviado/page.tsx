@@ -1,14 +1,16 @@
 // app/controlC/HU9/enlace-enviado/page.tsx
-import Link from 'next/link';
 import ClientView from './ClientView';
 
-type Props = {
-  searchParams: { [key: string]: string | string[] | undefined };
-};
+type SearchParams = Record<string, string | string[] | undefined>;
 
-export default function Page({ searchParams }: Props) {
-  const email = typeof searchParams.email === 'string' ? searchParams.email : undefined;
-  const token = typeof searchParams.token === 'string' ? searchParams.token : undefined;
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const sp = await searchParams;
+  const email = typeof sp.email === 'string' ? sp.email : undefined;
+  const token = typeof sp.token === 'string' ? sp.token : undefined;
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-servineo-500 via-servineo-300 to-servineo-400 p-6">
@@ -23,13 +25,15 @@ export default function Page({ searchParams }: Props) {
             <div>
               <h1 className="text-xl font-semibold leading-6">¡Enlace enviado!</h1>
               <p className="text-white/90 text-sm">
-                {email ? <>Revisa <span className="font-medium">{maskEmail(email)}</span> para continuar.</> : 'Revisa tu correo registrado para continuar.'}
+                {email
+                  ? <>Revisa <span className="font-medium">{maskEmail(email)}</span> para continuar.</>
+                  : 'Revisa tu correo registrado para continuar.'}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Todo lo dinámico del navegador vive en el ClientView */}
+        {/* Lógica de navegador (cooldown, timers, fetch) en el Client Component */}
         <ClientView email={email} token={token} />
       </div>
     </main>
