@@ -1,7 +1,9 @@
 // src/app/controlC/HU9/enlace-enviado/page.tsx
 'use client';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+
+export const dynamic = 'force-dynamic'; // evita prerender estático en Vercel
 
 const BASE_API =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/controlC';
@@ -13,7 +15,7 @@ function maskEmail(email: string) {
   return user.slice(0, 2) + '*****@' + domain;
 }
 
-export default function EnlaceEnviadoPage() {
+function EnlaceEnviadoInner() {
   const router = useRouter();
   const q = useSearchParams();
 
@@ -23,7 +25,6 @@ export default function EnlaceEnviadoPage() {
   const [loading, setLoading] = useState(false);
   const [canResend, setCanResend] = useState(true);
 
-  // Obtener correo sin exponerlo en URL
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const saved = sessionStorage.getItem('servineo_last_email');
@@ -32,12 +33,10 @@ export default function EnlaceEnviadoPage() {
         return;
       }
     }
-    // compat: si viene por query (versiones anteriores)
     const fromQuery = q?.get('email') || '';
     if (fromQuery) setEmail(fromQuery);
   }, [q]);
 
-  // contador
   useEffect(() => {
     const t = setInterval(() => {
       setCountdown((c) => (c <= 1 ? 0 : c - 1));
@@ -45,7 +44,6 @@ export default function EnlaceEnviadoPage() {
     return () => clearInterval(t);
   }, []);
 
-  // rate-limit en cliente (1/min) usando localStorage de forma segura
   useEffect(() => {
     if (!email || typeof window === 'undefined') return;
     const localKey = `servineo_last_request_${email}`;
@@ -85,8 +83,8 @@ export default function EnlaceEnviadoPage() {
           localStorage.setItem(`servineo_last_request_${email}`, String(Date.now()));
         }
         setInfo('Enlace reenviado. Revisa tu bandeja de entrada.');
-        setCountdown(300);        // reinicia contador para el nuevo enlace
-        setCanResend(false);      // bloquea 1 minuto
+        setCountdown(300);
+        setCanResend(false);
       } else if (res.status === 429) {
         setInfo('Ya existe una solicitud en curso. Intenta nuevamente en 1 minuto.');
         setCanResend(false);
@@ -144,13 +142,7 @@ export default function EnlaceEnviadoPage() {
           <div className="mt-5 flex flex-col items-center gap-2" aria-live="polite">
             <p className="text-sm text-gray-700">Tiempo restante para usar el enlace:</p>
             <div
-              className="
-                px-6 py-2 rounded-full
-                bg-gray-100 ring-1 ring-gray-300
-                text-3xl font-semibold text-gray-900
-                tracking-widest tabular-nums
-                shadow-sm
-              "
+              className="px-6 py-2 rounded-full bg-gray-100 ring-1 ring-gray-300 text-3xl font-semibold text-gray-900 tracking-widest tabular-nums shadow-sm"
               title="Tiempo restante"
             >
               {String(minutos).padStart(2, '0')}:{String(segundos).padStart(2, '0')}
@@ -189,11 +181,32 @@ export default function EnlaceEnviadoPage() {
 
           {/* Tips */}
           <div className="mt-6 text-xs text-gray-600 space-y-1">
-            <p>• Revisa la carpeta de <span className="font-medium">Spam</span> o <span className="font-medium">Promociones</span> si no ves el correo.</p>
-            <p>• Al generar un nuevo enlace, los anteriores quedan <span className="font-medium">inválidos</span>.</p>
+            <p>
+              • Revisa la carpeta de <span className="font-medium">Spam</span> o{' '}
+              <span className="font-medium">Promociones</span> si no ves el correo.
+            </p>
+            <p>
+              • Al generar un nuevo enlace, los anteriores quedan{' '}
+              <span className="font-medium">inválidos</span>.
+            </p>
           </div>
         </div>
       </div>
     </main>
+  );
+}
+
+// 👇 Envoltura con Suspense para evitar el error de Next/Vercel
+export default function EnlaceEnviadoPageWrapper() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen flex items-center justify-center p-6">
+          <p className="text-white text-lg">Cargando...</p>
+        </main>
+      }
+    >
+      <EnlaceEnviadoInner />
+    </Suspense>
   );
 }
